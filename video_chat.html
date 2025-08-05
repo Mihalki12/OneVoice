@@ -1,0 +1,77 @@
+<!-- video_chat.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Видео-чат</title>
+</head>
+<body>
+  <h2>Вы</h2>
+  <video id="localVideo" autoplay playsinline muted style="width: 300px; border: 1px solid black;"></video>
+
+  <h2>Собеседник</h2>
+  <video id="remoteVideo" autoplay playsinline style="width: 300px; border: 1px solid black;"></video>
+
+  <script>
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const pc = new RTCPeerConnection();
+    const ws = new WebSocket('ws://' + location.hostname + ':8000/ws');
+
+    let isInitiator = false;
+
+    ws.onmessage = async (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === 'init') {
+        isInitiator = true;
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = stream;
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        ws.send(JSON.stringify({ type: 'offer', offer }));
+      }
+
+      if (data.type === 'wait') {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = stream;
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      }
+
+      if (data.type === 'offer') {
+        await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        ws.send(JSON.stringify({ type: 'answer', answer }));
+      }
+
+      if (data.type === 'answer') {
+        await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+      }
+
+      if (data.type === 'candidate') {
+        if (data.candidate) {
+          try {
+            await pc.addIceCandidate(data.candidate);
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+    };
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        ws.send(JSON.stringify({ type: 'candidate', candidate: event.candidate }));
+      }
+    };
+
+    pc.ontrack = (event) => {
+      remoteVideo.srcObject = event.streams[0];
+    };
+  </script>
+</body>
+</html>
+

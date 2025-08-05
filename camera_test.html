@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Проверка камеры</title>
+</head>
+<body>
+  <h2>Видео с камеры</h2>
+  <video id="video" autoplay playsinline width="640" height="480" style="border: 1px solid black;"></video>
+
+  <script>
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const video = document.getElementById('video');
+        video.srcObject = stream;
+      } catch (err) {
+        alert("Ошибка доступа к камере/микрофону: " + err.message);
+        console.error(err);
+      }
+    });
+  </script>
+</body>
+</html>

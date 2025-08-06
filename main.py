@@ -1,6 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse  # <== сюда добавлен FileResponse
 import uvicorn
 
 app = FastAPI()
@@ -26,6 +26,14 @@ async def root():
         </body>
     </html>
     """
+
+@app.get("/video")
+async def get_video_chat():
+    return FileResponse("video_chat.html")
+
+@app.get("/camera")
+async def get_camera_test():
+    return FileResponse("camera_test.html")
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):

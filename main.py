@@ -1,6 +1,6 @@
-# main.py
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 import uvicorn
 
 app = FastAPI()
@@ -14,6 +14,18 @@ app.add_middleware(
 )
 
 connections = []
+
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    return """
+    <html>
+        <head><title>OneVoice</title></head>
+        <body>
+            <h1>OneVoice сервер работает 🎉</h1>
+            <p>WebSocket доступен по адресу: <code>/ws</code></p>
+        </body>
+    </html>
+    """
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):

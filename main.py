@@ -1,64 +1,48 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse  # <== сюда добавлен FileResponse
-import uvicorn
+import asyncio
+import logging
 
-app = FastAPI()
+from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+from app.config import load_config, settings
+from app.db import init_db, set_db_path
+from app.routers.common import router as common_router
+from app.routers.passenger import router as passenger_router
+from app.routers.driver import router as driver_router
+from app.routers.admin import router as admin_router
 
-connections = []
 
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    return """
-    <html>
-        <head><title>OneVoice</title></head>
-        <body>
-            <h1>OneVoice сервер работает 🎉</h1>
-            <p>WebSocket доступен по адресу: <code>/ws</code></p>
-        </body>
-    </html>
-    """
+async def on_startup() -> None:
+    # Initialize database schema
+    await init_db()
 
-@app.get("/video")
-async def get_video_chat():
-    return FileResponse("video_chat.html")
 
-@app.get("/camera")
-async def get_camera_test():
-    return FileResponse("camera_test.html")
+async def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    connections.append(websocket)
+    # Load configuration from environment
+    load_config()
 
-    try:
-        if len(connections) == 1:
-            await websocket.send_json({"type": "wait"})
-        elif len(connections) == 2:
-            await connections[0].send_json({"type": "init"})
-            await connections[1].send_json({"type": "wait"})
-        else:
-            await websocket.close()
-            return
+    # Configure DB path for DB module
+    set_db_path(settings.db_path)
 
-        while True:
-            data = await websocket.receive_json()
-            for conn in connections:
-                if conn != websocket:
-                    await conn.send_json(data)
+    bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode="HTML"))
+    dp = Dispatcher()
 
-    except WebSocketDisconnect:
-        connections.remove(websocket)
-        print("Client disconnected")
+    # Routers
+    dp.include_router(common_router)
+    dp.include_router(passenger_router)
+    dp.include_router(driver_router)
+    dp.include_router(admin_router)
+
+    # Register startup task
+    dp.startup.register(on_startup)
+
+    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logging.info("Bot stopped")
